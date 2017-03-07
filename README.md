@@ -32,3 +32,16 @@ Entities are PHP Objects that can be identified over many requests by a unique i
 
 An entity contains persistable properties. A persistable property is an instance variable of the entity that is saved into and retrieved from the database by Doctrine’s data mapping capabilities.
 
+## An Example Model: Bug Tracker
+
+For this Getting Started Guide for Doctrine we will implement the Bug Tracker domain model from the [Zend_Db_Table ](http://framework.zend.com/manual/1.12/en/zend.db.adapter.html)documentation. Reading their documentation we can extract the requirements:
+
+- A Bug has a description, creation date, status, reporter and engineer
+- A Bug can occur on different Products (platforms)
+- A Product has a name.
+- Bug reporters and engineers are both Users of the system.
+- A User can create new Bugs.
+- The assigned engineer can close a Bug.
+- A User can see all his reported or assigned Bugs.
+- Bugs can be paginated through a list-view.
+
