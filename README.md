@@ -45,3 +45,32 @@ For this Getting Started Guide for Doctrine we will implement the Bug Tracker do
 - A User can see all his reported or assigned Bugs.
 - Bugs can be paginated through a list-view.
 
+## Project Setup
+
+Create a new empty folder for this tutorial project, for example **doctrine2-tutorial** and create a new file **composer.json** with the following contents:
+
+    {
+        "require": {
+            "doctrine/orm": "2.4.*",
+            "symfony/yaml": "2.*"
+        },
+        "autoload": {
+            "psr-0": {"": "src/"}
+        }
+    }
+
+
+Install Doctrine using the Composer Dependency Management tool, by calling:
+
+    composer install
+
+This will install the packages Doctrine Common, Doctrine DBAL, Doctrine ORM, Symfony YAML and Symfony Console into the vendor directory. The Symfony dependencies are not required by Doctrine but will be used in this tutorial.
+
+Add the following directories:
+
+    doctrine2-tutorial
+    |-- config
+    |   |-- xml
+    |   `-- yaml
+    `-- src
+    
