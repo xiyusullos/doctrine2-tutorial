@@ -9,3 +9,13 @@ This guide covers getting started with the Doctrine ORM. After working through t
 - Generating a database schema from PHP objects
 - Using the `EntityManager` to insert, update, delete and find objects in the 
 database.
+
+## Guide Assumptions
+
+This guide is designed for beginners that haven’t worked with Doctrine ORM before. There are some prerequesites for the tutorial that have to be installed:
+
+- PHP (latest stable version)
+- Composer Package Manager ([Install Composer](http://getcomposer.org/doc/00-intro.md))
+
+ The code of this tutorial is [available on Github](https://github.com/doctrine/doctrine2-orm-tutorial).
+ 
