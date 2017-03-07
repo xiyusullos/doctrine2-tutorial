@@ -109,3 +109,33 @@ The third block shows the configuration options required to connect to a databas
 
 The last block shows how the **EntityManager** is obtained from a factory method.
 
+## Generating the Database Schema
+
+Now that we have defined the Metadata mappings and bootstrapped the EntityManager we want to generate the relational database schema from it. Doctrine has a Command-Line Interface that allows you to access the SchemaTool, a component that generates the required tables to work with the metadata.
+
+For the command-line tool to work a **cli-config.php** file has to be present in the project root directory, where you will execute the doctrine command. Its a fairly simple file:
+
+    <?php
+    // cli-config.php
+    require_once "bootstrap.php";
+    
+    return \Doctrine\ORM\Tools\Console\ConsoleRunner::createHelperSet($entityManager);
+
+You can then change into your project directory and call the Doctrine command-line tool:
+
+    cd project/
+    vendor/bin/doctrine orm:schema-tool:create
+
+At this point no entity metadata exists in src so you will see a message like “No Metadata Classes to process.” Don’t worry, we’ll create a Product entity and corresponding metadata in the next section.
+
+You should be aware that during the development process you’ll periodically need to update your database schema to be in sync with your Entities metadata.
+
+You can easily recreate the database:
+
+    vendor/bin/doctrine orm:schema-tool:drop --force
+    vendor/bin/doctrine orm:schema-tool:create
+
+Or use the update functionality:
+
+    vendor/bin/doctrine orm:schema-tool:update --force
+The updating of databases uses a Diff Algorithm for a given Database Schema, a cornerstone of the **Doctrine\DBAL** package, which can even be used without the Doctrine ORM package.
