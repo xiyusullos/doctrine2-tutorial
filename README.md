@@ -74,3 +74,38 @@ Add the following directories:
     |   `-- yaml
     `-- src
     
+## Obtaining the EntityManager
+
+Doctrine’s public interface is the EntityManager, it provides the access point to the complete lifecycle management of your entities and transforms entities from and back to persistence. You have to configure and create it to use your entities with Doctrine 2. I will show the configuration steps and then discuss them step by step:
+    
+    <?php
+    // bootstrap.php
+    use Doctrine\ORM\Tools\Setup;
+    use Doctrine\ORM\EntityManager;
+    
+    require_once "vendor/autoload.php";
+    
+    // Create a simple "default" Doctrine ORM configuration for Annotations
+    $isDevMode = true;
+    $config = Setup::createAnnotationMetadataConfiguration(array(__DIR__."/src"), $isDevMode);
+    // or if you prefer yaml or XML
+    //$config = Setup::createXMLMetadataConfiguration(array(__DIR__."/config/xml"), $isDevMode);
+    //$config = Setup::createYAMLMetadataConfiguration(array(__DIR__."/config/yaml"), $isDevMode);
+    
+    // database configuration parameters
+    $conn = array(
+        'driver' => 'pdo_sqlite',
+        'path' => __DIR__ . '/db.sqlite',
+    );
+    
+    // obtaining the entity manager
+    $entityManager = EntityManager::create($conn, $config);
+
+The first require statement sets up the autoloading capabilities of Doctrine using the Composer autoload.
+
+The second block consists of the instantiation of the ORM **Configuration** object using the Setup helper. It assumes a bunch of defaults that you don’t have to bother about for now. You can read up on the configuration details in the [reference chapter on configuration](http://docs.doctrine-project.org/projects/doctrine-orm/en/latest/reference/configuration.html).
+
+The third block shows the configuration options required to connect to a database, in my case a file-based sqlite database. All the configuration options for all the shipped drivers are given in the [DBAL Configuration section of the manual](http://www.doctrine-project.org/documentation/manual/2_0/en/dbal).
+
+The last block shows how the **EntityManager** is obtained from a factory method.
+
