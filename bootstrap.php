@@ -16,7 +16,7 @@ require_once "vendor/autoload.php";
 $isDevMode = true;
 $config = Setup::createAnnotationMetadataConfiguration([__DIR__ . '/src'], $isDevMode);
 // or if you refer yaml or XML
-// $config = Setup::createXMLMetadataConfiguration([__DIR__ .'src'], $isDevMode);
+// $config = Setup::createXMLMetadataConfiguration([__DIR__ .'/src'], $isDevMode);
 // $config = Setup::createYAMLMetadataConfiguration([__DIR__ .'/src'], $isDevMode);
 
 // database configuration parameters

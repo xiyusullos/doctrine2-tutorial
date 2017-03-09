@@ -47,7 +47,7 @@ For this Getting Started Guide for Doctrine we will implement the Bug Tracker do
 
 ## Project Setup
 
-Create a new empty folder for this tutorial project, for example **doctrine2-tutorial** and create a new file **composer.json** with the following contents:
+Create a new empty folder for this tutorial project, for example **doctrine2-tutorial** and create a new file `composer.json` with the following contents:
 
     {
         "require": {
@@ -113,7 +113,7 @@ The last block shows how the **EntityManager** is obtained from a factory method
 
 Now that we have defined the Metadata mappings and bootstrapped the EntityManager we want to generate the relational database schema from it. Doctrine has a Command-Line Interface that allows you to access the SchemaTool, a component that generates the required tables to work with the metadata.
 
-For the command-line tool to work a **cli-config.php** file has to be present in the project root directory, where you will execute the doctrine command. Its a fairly simple file:
+For the command-line tool to work a `cli-config.php` file has to be present in the project root directory, where you will execute the doctrine command. Its a fairly simple file:
 
     <?php
     // cli-config.php
@@ -139,3 +139,238 @@ Or use the update functionality:
 
     vendor/bin/doctrine orm:schema-tool:update --force
 The updating of databases uses a Diff Algorithm for a given Database Schema, a cornerstone of the **Doctrine\DBAL** package, which can even be used without the Doctrine ORM package.
+
+## Starting with the Product
+
+We start with the simplest entity, the Product. Create a `src/Product.php` file to contain the **Product** entity definition:
+
+    <?php
+    // src/Product.php
+    class Product
+    {
+        /**
+         * @var int
+         */
+        protected $id;
+        /**
+         * @var string
+         */
+        protected $name;
+    
+        public function getId()
+        {
+            return $this->id;
+        }
+    
+        public function getName()
+        {
+            return $this->name;
+        }
+    
+        public function setName($name)
+        {
+            $this->name = $name;
+        }
+    }
+Note that all fields are set to protected (not public) with a mutator (getter and setter) defined for every field except $id. The use of mutators allows Doctrine to hook into calls which manipulate the entities in ways that it could not if you just directly set the values with `entity#field = foo`;
+
+The id field has no setter since, generally speaking, your code should not set this value since it represents a database id value. (Note that Doctrine itself can still set the value using the Reflection API instead of a defined setter function)
+
+The next step for persistence with Doctrine is to describe the structure of the **Product** entity to Doctrine using a metadata language. The metadata language describes how entities, their properties and references should be persisted and what constraints should be applied to them.
+
+Metadata for entities are configured using a XML, YAML or Docblock Annotations. This Getting Started Guide will show the mappings for all Mapping Drivers. References in the text will be made to the XML mapping.
+
+```XML
+<!-- config/xml/Product.dcm.xml -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                    http://raw.github.com/doctrine/doctrine2/master/doctrine-mapping.xsd">
+
+      <entity name="Product" table="products">
+          <id name="id" type="integer">
+              <generator strategy="AUTO" />
+          </id>
+
+          <field name="name" type="string" />
+      </entity>
+</doctrine-mapping>
+```
+
+```YAML
+# config/yaml/Product.dcm.yml
+Product:
+  type: entity
+  table: products
+  id:
+    id:
+      type: integer
+      generator:
+        strategy: AUTO
+  fields:
+    name:
+      type: string
+```
+
+```php
+<?php
+// src/Product.php
+/**
+ * @Entity @Table(name="products")
+ **/
+class Product
+{
+    /** @Id @Column(type="integer") @GeneratedValue **/
+    protected $id;
+    /** @Column(type="string") **/
+    protected $name;
+
+    // .. (other code)
+}
+```
+The top-level **entity** definition tag specifies information about the class and table-name. The primitive type **Product#name** is defined as a **field** attribute. The **id** property is defined with the **id** tag, this has a **generator** tag nested inside which defines that the primary key generation mechanism automatically uses the database platforms native id generation strategy (for example AUTO INCREMENT in the case of MySql or Sequences in the case of PostgreSql and Oracle).
+
+Now that we have defined our first entity, let’s update the database:
+
+
+    $ vendor/bin/doctrine orm:schema-tool:update --force --dump-sql
+
+Specifying both flags `--force` and `--dump-sql` prints and executes the DDL statements.
+
+Now create a new script that will insert products into the database:
+
+```PHP
+<?php
+// create_product.php
+require_once "bootstrap.php";
+
+$newProductName = $argv[1];
+
+$product = new Product();
+$product->setName($newProductName);
+
+$entityManager->persist($product);
+$entityManager->flush();
+
+echo "Created Product with ID " . $product->getId() . "\n";
+```
+
+Call this script from the command-line to see how new products are created:
+
+    php create_product.php ORM
+    php create_product.php DBAL
+
+----------
+*Here I got some errors:*
+
+> $ php create_product.php ORM
+> 
+> Fatal error: Uncaught exception 'Doctrine\ORM\Mapping\MappingException' with message 'Class "Product" is not a valid entity or mapped super class.' in D:\04.Codes\doctrine2-tutorial\vendor\doctrine\orm\lib\Doctrine\ORM\Mapping\MappingException.php:336
+> Stack trace:
+> \#0 D:\04.Codes\doctrine2-tutorial\vendor\doctrine\orm\lib\Doctrine\ORM\Mapping\Driver\AnnotationDriver.php(89): Doctrine\ORM\Mapping\MappingException::classIsNotAValidEntityOrMappedSuperClass('Product')
+> \#1 D:\04.Codes\doctrine2-tutorial\vendor\doctrine\orm\lib\Doctrine\ORM\Mapping\ClassMetadataFactory.php(116): Doctrine\ORM\Mapping\Driver\AnnotationDriver->loadMetadataForClass('Product', Object(Doctrine\ORM\Mapping\ClassMetadata))
+> \#2 D:\04.Codes\doctrine2-tutorial\vendor\doctrine\common\lib\Doctrine\Common\Persistence\Mapping\AbstractClassMetadataFactory.php(332): Doctrine\ORM\Mapping\ClassMetadataFactory->doLoadMetadata(Object(Doctrine\ORM\Mapping\ClassMetadata), NULL, false, Array)
+> \#3 D:\04.Codes\doctrine2-tutorial\vendor\doctrine\common\lib\Doctrine\Common\Pe in D:\04.Codes\doctrine2-tutorial\vendor\doctrine\orm\lib\Doctrine\ORM\Mapping\MappingException.php on line 336
+> 
+
+*Reasons*:
+- Thanks for the PhpStrom "PHP Annotations" plugin!!! It generated codes like this: 
+
+    ```PHP
+    <?php
+    use Doctrine\ORM\Mapping as ORM;
+    
+    /**
+     * Created by PhpStorm.
+     * User: xiyusullos
+     * Date: 2017/3/9
+     * Time: 15:29
+     *
+     * @ORM\Entity() @ORM\Table(name="products")
+     */
+    class Product
+    {
+        /**
+         * @var int
+         *
+         * @ORM\Id() @ORM\Column(type="integer") @ORM\GeneratedValue()
+         */
+        protected $id;
+    
+        /**
+         * @var string
+         *
+         * @ORM\Column(type="string")
+         */
+        protected $name;
+        // ...
+    }
+    ```
+- One more important is that only double quote works. This `@Table(name='products')` doesn't work. Make sure change the **'** to **"** like  `@Table(name="products")`
+----------
+
+What is happening here? Using the Product is pretty standard OOP. The interesting bits are the use of the EntityManager service. To notify the EntityManager that a new entity should be inserted into the database you have to call persist(). To initiate a transaction to actually perform the insertion, You have to explicitly call flush() on the EntityManager.
+
+**This distinction between persist and flush is allows to aggregate all writes (INSERT, UPDATE, DELETE) into one single transaction, which is executed when flush is called. Using this approach the write-performance is significantly better than in a scenario where updates are done for each entity in isolation.**
+
+Doctrine follows the **UnitOfWork pattern**(*[Intent: Maintains a list of objects that are affected by a business transaction and coordinates the writing out of changes and resolution of concurrency problems.](http://wiki.c2.com/?UnitOfWork)*) which additionally detects all entities that were fetched and have changed during the request. You don’t have to keep track of entities yourself, when Doctrine already knows about them.
+
+As a next step we want to fetch a list of all the Products. Let’s create a new script for this:
+
+```PHP
+<?php
+// list_products.php
+require_once "bootstrap.php";
+
+$productRepository = $entityManager->getRepository('Product');
+$products = $productRepository->findAll();
+
+foreach ($products as $product) {
+    echo sprintf("-%s\n", $product->getName());
+}
+```
+
+The `EntityManager#getRepository()` method can create a finder object (called a repository) for every entity. It is provided by Doctrine and contains some finder methods such as `findAll()`.
+
+Let’s continue with displaying the name of a product based on its ID:
+
+```PHP
+<?php
+// show_product.php <id>
+require_once "bootstrap.php";
+
+$id = $argv[1];
+$product = $entityManager->find('Product', $id);
+
+if ($product === null) {
+    echo "No product found.\n";
+    exit(1);
+}
+
+echo sprintf("-%s\n", $product->getName());
+```
+
+Updating a product name demonstrates the functionality UnitOfWork of pattern discussed before. We only need to find a product entity and all changes to its properties are written to the database:
+
+```PHP
+<?php
+// update_product.php <id> <new-name>
+require_once "bootstrap.php";
+
+$id = $argv[1];
+$newName = $argv[2];
+
+$product = $entityManager->find('Product', $id);
+
+if ($product === null) {
+    echo "Product $id does not exist.\n";
+    exit(1);
+}
+
+$product->setName($newName);
+
+$entityManager->flush();
+```
+
+After calling this script on one of the existing products, you can verify the product name changed by calling the `show_product.php` script.
+
