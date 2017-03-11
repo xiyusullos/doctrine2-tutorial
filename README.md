@@ -1089,3 +1089,30 @@ You have created or assigned to 1 open bugs:
 1 - Somethins does not work!
 ```
 
+## Number of Bugs
+
+Until now we only retrieved entities or their array representation. Doctrine also supports the retrieval of non-entities through DQL. These values are called “scalar result values” and may even be aggregate values using COUNT, SUM, MIN, MAX or AVG functions.
+
+We will need this knowledge to retrieve the number of open bugs grouped by product:
+
+```PHP
+<?php
+// products.php
+require_once "bootstrap.php";
+
+$dql = "SELECT p.id, p.name, count(b.id) AS openBugs FROM Bug b ".
+       "JOIN b.products p WHERE b.status = 'OPEN' GROUP BY p.id";
+$productBugs = $entityManager->createQuery($dql)->getScalarResult();
+
+foreach ($productBugs as $productBug) {
+    echo $productBug['name']." has " . $productBug['openBugs'] . " open bugs!\n";
+}
+```
+
+The call prints:
+
+```
+$ php products.php
+ORM-new has 1 open bugs!
+```
+
