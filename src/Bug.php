@@ -160,4 +160,8 @@ class Bug
         $this->products[] = $product;
     }
 
+    public function close()
+    {
+        $this->status = 'CLOSE';
+    }
 }
