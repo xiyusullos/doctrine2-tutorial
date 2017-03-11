@@ -922,3 +922,5 @@ This is the first contact with the read API of the EntityManager, showing that a
 
 See how simple relating Bug, Reporter, Engineer and Products is done by using the discussed methods in the “A first prototype” section. The UnitOfWork will detect this relationship when flush is called and relate them in the database appropriately.
 
+## Queries for Application Use-Cases
+
