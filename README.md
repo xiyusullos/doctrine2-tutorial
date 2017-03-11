@@ -374,3 +374,453 @@ $entityManager->flush();
 
 After calling this script on one of the existing products, you can verify the product name changed by calling the `show_product.php` script.
 
+## Adding Bug and User Entities
+
+We continue with the bug tracker domain, by creating the missing classes Bug and User and putting them into src/Bug.php and src/User.php respectively.
+
+```PHP
+<?php
+// src/Bug.php
+/**
+ * @Entity(repositoryClass="BugRepository") @Table(name="bugs")
+ */
+class Bug
+{
+    /**
+     * @Id @Column(type="integer") @GeneratedValue
+     * @var int
+     */
+    protected $id;
+    /**
+     * @Column(type="string")
+     * @var string
+     */
+    protected $description;
+    /**
+     * @Column(type="datetime")
+     * @var DateTime
+     */
+    protected $created;
+    /**
+     * @Column(type="string")
+     * @var string
+     */
+    protected $status;
+
+    public function getId()
+    {
+        return $this->id;
+    }
+
+    public function getDescription()
+    {
+        return $this->description;
+    }
+
+    public function setDescription($description)
+    {
+        $this->description = $description;
+    }
+
+    public function setCreated(DateTime $created)
+    {
+        $this->created = $created;
+    }
+
+    public function getCreated()
+    {
+        return $this->created;
+    }
+
+    public function setStatus($status)
+    {
+        $this->status = $status;
+    }
+
+    public function getStatus()
+    {
+        return $this->status;
+    }
+}
+```
+
+```PHP
+<?php
+// src/User.php
+/**
+ * @Entity @Table(name="users")
+ */
+class User
+{
+    /**
+     * @Id @GeneratedValue @Column(type="integer")
+     * @var int
+     */
+    protected $id;
+    /**
+     * @Column(type="string")
+     * @var string
+     */
+    protected $name;
+
+    public function getId()
+    {
+        return $this->id;
+    }
+
+    public function getName()
+    {
+        return $this->name;
+    }
+
+    public function setName($name)
+    {
+        $this->name = $name;
+    }
+}
+```
+
+All of the properties discussed so far are simple string and integer values, for example the id fields of the entities, their names, description, status and change dates. Next we will model the dynamic relationships between the entities by defining the references between entities.
+
+References between objects are foreign keys in the database. You never have to (and never should) work with the foreign keys directly, only with the objects that represent the foreign key through their own identity.
+
+For every foreign key you either have a Doctrine **ManyToOne** or **OneToOne** association. On the inverse sides of these foreign keys you can have **OneToMany** associations. Obviously you can have **ManyToMany** associations that connect two tables with each other through a join table with two foreign keys.
+
+Now that you know the basics about references in Doctrine, we can extend the domain model to match the requirements:
+
+```PHP
+<?php
+// src/Bug.php
+use Doctrine\Common\Collections\ArrayCollection;
+
+class Bug
+{
+    // ... (previous code)
+
+    protected $products;
+
+    public function __construct()
+    {
+        $this->products = new ArrayCollection();
+    }
+}
+```
+
+```PHP
+<?php
+// src/User.php
+use Doctrine\Common\Collections\ArrayCollection;
+class User
+{
+    // ... (previous code)
+
+    protected $reportedBugs;
+    protected $assignedBugs;
+
+    public function __construct()
+    {
+        $this->reportedBugs = new ArrayCollection();
+        $this->assignedBugs = new ArrayCollection();
+    }
+}
+```
+
+You use Doctrine’s ArrayCollections in your Doctrine models, rather than plain PHP arrays, so that Doctrine can watch what happens with them and act appropriately. Note that if you dump your entities, you’ll see a “PersistentCollection” in place of your ArrayCollection, which is just an internal Doctrine class with the same interface.
+
+> Lazy load proxies always contain an instance of Doctrine’s EntityManager and all its dependencies. Therefore a `var_dump()` will possibly dump a very large recursive structure which is impossible to render and read. You have to use **`Doctrine\Common\Util\Debug::dump()`** to restrict the dumping to a human readable level. Additionally you should be aware that dumping the EntityManager to a Browser may take several minutes, and the `Debug::dump()` method just ignores any occurrences of it in Proxy instances.
+
+Because we only work with collections for the references we must be careful to implement a bidirectional reference in the domain model. The concept of owning or inverse side of a relation is central to this notion and should always be kept in mind. The following assumptions are made about relations and have to be followed to be able to work with Doctrine 2. These assumptions are not unique to Doctrine 2 but are best practices in handling database relations and Object-Relational Mapping.
+
+- Changes to Collections are saved or updated, when the entity on the **owning** side of the collection is saved or updated.
+- Saving an Entity at the inverse side of a relation **never** triggers a persist operation to changes to the collection.
+- In a one-to-one relation the entity holding the foreign key of the related entity on its own database table is **always** the owning side of the relation.
+- In a many-to-many relation, **both** sides can be the owning side of the relation. However in a bi-directional many-to-many relation only one is allowed to be.
+- In a many-to-one relation the Many-side is the owning side by default, because it holds the foreign key.
+- The OneToMany side of a relation is inverse by default, since the foreign key is saved on the Many side. A OneToMany relation can only be the owning side, if its implemented using a ManyToMany relation with join table and restricting the one side to allow only UNIQUE values per database constraint.
+
+> **Consistency** of bi-directional references on the inverse side of a relation have to **be managed** in userland application code. Doctrine cannot magically update your collections to be consistent.
+
+In the case of Users and Bugs we have references back and forth to the assigned and reported bugs from a user, making this relation bi-directional. We have to change the code to ensure consistency of the bi-directional reference:
+
+```PHP
+<?php
+// src/Bug.php
+class Bug
+{
+    // ... (previous code)
+
+    protected $engineer;
+    protected $reporter;
+
+    public function setEngineer($engineer)
+    {
+        $engineer->assignedToBug($this);
+        $this->engineer = $engineer;
+    }
+
+    public function setReporter($reporter)
+    {
+        $reporter->addReportedBug($this);
+        $this->reporter = $reporter;
+    }
+
+    public function getEngineer()
+    {
+        return $this->engineer;
+    }
+
+    public function getReporter()
+    {
+        return $this->reporter;
+    }
+}
+```
+
+```PHP
+<?php
+// src/User.php
+class User
+{
+    // ... (previous code)
+
+    protected $reportedBugs = null;
+    protected $assignedBugs = null;
+
+    public function addReportedBug($bug)
+    {
+        $this->reportedBugs[] = $bug;
+    }
+
+    public function assignedToBug($bug)
+    {
+        $this->assignedBugs[] = $bug;
+    }
+}
+```
+
+I chose to name the inverse methods in **past-tense**, which should indicate that the actual assigning has already taken place and the methods are only used for **ensuring **consistency of the references. This approach is my personal preference, you can choose whatever method to make this work.
+
+You can see from `User#addReportedBug()` and `User#assignedToBug()` that using this method in userland alone would not add the Bug to the collection of the owning side in `Bug#reporter` or `Bug#engineer`. Using these methods and calling Doctrine for persistence would not update the collections representation in the database.
+
+Only using `Bug#setEngineer()` or `Bug#setReporter()` correctly saves the relation information.
+
+The `Bug#reporter` and `Bug#engineer` properties are Many-To-One relations, which point to a User. In a normalized relational model the foreign key is saved on the Bug’s table, hence in our object-relation model **the Bug is at the owning side** of the relation. You should always make sure that the use-cases of your domain model should drive which side is an inverse or owning one in your Doctrine mapping. In our example, whenever a new bug is saved or an engineer is assigned to the bug, we don’t want to update the User to persist the reference, but the Bug. This is the case with the Bug being at the owning side of the relation.
+
+Bugs reference Products by an uni-directional ManyToMany relation in the database that points from Bugs to Products.
+
+```PHP
+<?php
+// src/Bug.php
+class Bug
+{
+    // ... (previous code)
+
+    protected $products = null;
+
+    public function assignToProduct($product)
+    {
+        $this->products[] = $product;
+    }
+
+    public function getProducts()
+    {
+        return $this->products;
+    }
+}
+```
+
+We are now finished with the domain model given the requirements. Lets add metadata mappings for the `User` and `Bug` as we did for the `Product` before:
+
+```PHP
+<?php
+// src/Bug.php
+/**
+ * @Entity @Table(name="bugs")
+ **/
+class Bug
+{
+    /**
+     * @Id @Column(type="integer") @GeneratedValue
+     **/
+    protected $id;
+    /**
+     * @Column(type="string")
+     **/
+    protected $description;
+    /**
+     * @Column(type="datetime")
+     **/
+    protected $created;
+    /**
+     * @Column(type="string")
+     **/
+    protected $status;
+
+    /**
+     * @ManyToOne(targetEntity="User", inversedBy="assignedBugs")
+     **/
+    protected $engineer;
+
+    /**
+     * @ManyToOne(targetEntity="User", inversedBy="reportedBugs")
+     **/
+    protected $reporter;
+
+    /**
+     * @ManyToMany(targetEntity="Product")
+     **/
+    protected $products;
+
+    // ... (other code)
+}
+```
+
+```XML
+<!-- config/xml/Bug.dcm.xml -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                    http://raw.github.com/doctrine/doctrine2/master/doctrine-mapping.xsd">
+
+    <entity name="Bug" table="bugs">
+        <id name="id" type="integer">
+            <generator strategy="AUTO" />
+        </id>
+
+        <field name="description" type="text" />
+        <field name="created" type="datetime" />
+        <field name="status" type="string" />
+
+        <many-to-one target-entity="User" field="reporter" inversed-by="reportedBugs" />
+        <many-to-one target-entity="User" field="engineer" inversed-by="assignedBugs" />
+
+        <many-to-many target-entity="Product" field="products" />
+    </entity>
+</doctrine-mapping>
+
+```
+
+```YAML
+# config/yaml/Bug.dcm.yml
+Bug:
+  type: entity
+  table: bugs
+  id:
+    id:
+      type: integer
+      generator:
+        strategy: AUTO
+  fields:
+    description:
+      type: text
+    created:
+      type: datetime
+    status:
+      type: string
+  manyToOne:
+    reporter:
+      targetEntity: User
+      inversedBy: reportedBugs
+    engineer:
+      targetEntity: User
+      inversedBy: assignedBugs
+  manyToMany:
+    products:
+      targetEntity: Product
+```
+
+Here we have the entity, id and primitive type definitions. For the “created” field we have used the datetime type, which translates the YYYY-mm-dd HH:mm:ss database format into a PHP DateTime instance and back.
+
+After the field definitions the two qualified references to the user entity are defined. They are created by the **many-to-one** tag. The class name of the related entity has to be specified with the **target-entity** attribute, which is enough information for the database mapper to access the foreign-table. Since **reporter** and **engineer** are on the owning side of a bi-directional relation we also have to specify the **inversed-by** attribute. They have to point to the field names on the inverse side of the relationship. We will see in the next example that the **inversed-by** attribute has a counterpart **mapped-by** which makes that the inverse side.
+
+The last definition is for the **Bug#products** collection. It holds all products where the specific bug occurs. Again you have to define the **target-entity** and **field** attributes on the **many-to-many** tag.
+
+The last missing definition is that of the User entity:
+
+```PHP
+<?php
+// src/User.php
+/**
+ * @Entity @Table(name="users")
+ **/
+class User
+{
+    /**
+     * @Id @GeneratedValue @Column(type="integer")
+     * @var int
+     **/
+    protected $id;
+
+    /**
+     * @Column(type="string")
+     * @var string
+     **/
+    protected $name;
+
+    /**
+     * @OneToMany(targetEntity="Bug", mappedBy="reporter")
+     * @var Bug[]
+     **/
+    protected $reportedBugs = null;
+
+    /**
+     * @OneToMany(targetEntity="Bug", mappedBy="engineer")
+     * @var Bug[]
+     **/
+    protected $assignedBugs = null;
+
+    // .. (other code)
+}
+```
+
+```XML
+<!-- config/xml/User.dcm.xml -->
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                    http://raw.github.com/doctrine/doctrine2/master/doctrine-mapping.xsd">
+
+     <entity name="User" table="users">
+         <id name="id" type="integer">
+             <generator strategy="AUTO" />
+         </id>
+
+         <field name="name" type="string" />
+
+         <one-to-many target-entity="Bug" field="reportedBugs" mapped-by="reporter" />
+         <one-to-many target-entity="Bug" field="assignedBugs" mapped-by="engineer" />
+     </entity>
+</doctrine-mapping>
+```
+
+```YAML
+# config/yaml/User.dcm.yml
+User:
+  type: entity
+  table: users
+  id:
+    id:
+      type: integer
+      generator:
+        strategy: AUTO
+  fields:
+    name:
+      type: string
+  oneToMany:
+    reportedBugs:
+      targetEntity: Bug
+      mappedBy: reporter
+    assignedBugs:
+      targetEntity: Bug
+      mappedBy: engineer
+```
+
+Here are some new things to mention about the **one-to-many** tags. Remember that we discussed about the inverse and owning side. Now both reportedBugs and assignedBugs are inverse relations, which means the join details have already been defined on the owning side. Therefore we only have to specify the property on the Bug class that holds the owning sides.
+
+This example has a fair overview of the most basic features of the metadata definition language.
+
+Update your database running:
+
+    vendor/bin/doctrine orm:schema-tool:update --force
+
+
