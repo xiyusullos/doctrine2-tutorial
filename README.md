@@ -26,7 +26,7 @@ Doctrine 2 is an [object-relational mapper (ORM)](http://en.wikipedia.org/wiki/O
 
 The benefit of Doctrine for the programmer is the ability to focus on the object-oriented business logic and worry about persistence only as a secondary problem. This doesn’t mean persistence is downplayed by Doctrine 2, however it is our belief that there are considerable benefits for object-oriented programming if persistence and entities are kept separated.
 
-## What are Entities?
+### What are Entities?
 
 Entities are PHP Objects that can be identified over many requests by a unique identifier or primary key. These classes don’t need to extend any abstract base class or interface. An entity class must not be final or contain final methods. Additionally it must not implement **clone** nor **wakeup**, unless it [does so safely](http://docs.doctrine-project.org/projects/doctrine-orm/en/latest/cookbook/implementing-wakeup-or-clone.html).
 
@@ -823,4 +823,102 @@ Update your database running:
 
     vendor/bin/doctrine orm:schema-tool:update --force
 
+## Implementing more Requirements
+
+For starters we need to create user entities:
+
+```PHP
+<?php
+// create_user.php
+require_once "bootstrap.php";
+
+$newUsername = $argv[1];
+
+$user = new User();
+$user->setName($newUsername);
+
+$entityManager->persist($user);
+$entityManager->flush();
+
+echo "Created User with ID " . $user->getId() . "\n";
+```
+
+Now call:
+
+    php create_user.php xiyusullos
+
+We now have the data to create a bug and the code for this scenario may look like this:
+
+```PHP
+<?php
+// create_bug.php
+require_once "bootstrap.php";
+
+$theReporterId = $argv[1];
+$theDefaultEngineerId = $argv[2];
+$productIds = explode(",", $argv[3]);
+
+$reporter = $entityManager->find("User", $theReporterId);
+$engineer = $entityManager->find("User", $theDefaultEngineerId);
+if (!$reporter || !$engineer) {
+    echo "No reporter and/or engineer found for the input.\n";
+    exit(1);
+}
+
+$bug = new Bug();
+$bug->setDescription("Something does not work!");
+$bug->setCreated(new DateTime("now"));
+$bug->setStatus("OPEN");
+
+foreach ($productIds as $productId) {
+    $product = $entityManager->find("Product", $productId);
+    $bug->assignToProduct($product);
+}
+
+$bug->setReporter($reporter);
+$bug->setEngineer($engineer);
+
+$entityManager->persist($bug);
+$entityManager->flush();
+
+echo "Your new Bug Id: ".$bug->getId()."\n";
+
+```
+
+Since we only have one user and product, probably with the ID of 1, we can call this script with:
+
+    php create_bug.php 1 1 1
+
+
+----------
+*Here I got some errors.*
+
+> $ php create_bug.php 1 1 1
+> 
+> Catchable fatal error: Argument 1 passed to Doctrine\Common\Collections\ArrayCollection::__construct() must be of the type array, object given, called in D:\04.Codes\doctrine2-tutorial\vendor\doctrine\orm\lib\Doctrine\ORM\UnitOfWork.php on line 555 and defined in D:\04.Codes\doctrine2-tutorial\vendor\doctrine\collections\lib\Doctrine\Common\Collections\ArrayCollection.php on line 53
+ 
+Resons:
+- Carelessly wrote this:  
+```PHP
+ /**
+ * @ManyToMany(targetEntity="User", inversedBy="reportedBugs")
+ * @var
+ */
+protected $reporter;
+```
+Should be this:
+```php
+ /**
+ * @ManyToOne(targetEntity="User", inversedBy="reportedBugs")
+ * @var
+ */
+protected $reporter;
+```
+- Then recall this `vendor/bin/doctrine orm:schema-tool:update --force` 
+----------
+
+
+This is the first contact with the read API of the EntityManager, showing that a call to `EntityManager#find($name, $id)` returns a single instance of an entity queried by primary key. Besides this we see the persist + flush pattern again to save the Bug into the database.
+
+See how simple relating Bug, Reporter, Engineer and Products is done by using the discussed methods in the “A first prototype” section. The UnitOfWork will detect this relationship when flush is called and relate them in the database appropriately.
 

@@ -43,14 +43,14 @@ class Bug
     protected $engineer;
 
     /**
-     * @ManyToMany(targetEntity="User", inversedBy="reportedBugs")
+     * @ManyToOne(targetEntity="User", inversedBy="reportedBugs")
      * @var
      */
     protected $reporter;
 
     /**
      * @ManyToMany(targetEntity="Product")
-     * @var ArrayCollection
+     * @var Product[]
      */
     protected $products = null;
 
