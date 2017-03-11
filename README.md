@@ -1286,3 +1286,12 @@ $productCount = $entityManager->getRepository(Product::class)
                          ->count(['name' => $productName]);
 ```
 
+## Conclusion
+
+This tutorial is over here, I hope you had fun. Additional content will be added to this tutorial incrementally, topics will include:
+
+- More on Association Mappings
+- Lifecycle Events triggered in the UnitOfWork
+- Ordering of Collections
+
+Additional details on all the topics discussed here can be found in the respective manual chapters.
