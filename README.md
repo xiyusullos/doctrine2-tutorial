@@ -964,3 +964,34 @@ Somethins does not work! - 11.03.2017
 > An important reason why DQL is favourable to the Query API of most ORMs is its similarity to SQL. The DQL language allows query constructs that most ORMs don’t: GROUP BY even with HAVING, Sub-selects, Fetch-Joins of nested classes, mixed results with entities and scalar data such as COUNT() results and much more. Using DQL you should seldom come to the point where you want to throw your ORM into the dumpster, because it doesn’t support some the more powerful SQL concepts.
 > Instead of handwriting DQL you can use the `QueryBuilder` retrieved by calling `$entityManager->createQueryBuilder()`. There are more details about this in the relevant part of the documentation.
 > As a last resort you can still use Native SQL and a description of the result set to retrieve entities from the database. DQL boils down to a Native SQL statement and a ResultSetMapping instance itself. Using Native SQL you could even use stored procedures for data retrieval, or make use of advanced non-portable database queries like PostgreSql’s recursive queries.
+
+### Array Hydration of the Bug List
+
+In the previous use-case we retrieved the results as their respective object instances. We are not limited to retrieving objects only from Doctrine however. For a simple list view like the previous one we only need read access to our entities and can switch the hydration from objects to simple PHP arrays instead.
+
+Hydration can be an expensive process so only retrieving what you need can yield considerable performance benefits for read-only requests.
+
+Implementing the same list view as before using array hydration we can rewrite our code:
+
+```PHP
+<?php
+// list_bugs_array.php
+require_once "bootstrap.php";
+
+$dql = "SELECT b, e, r, p FROM Bug b JOIN b.engineer e ".
+       "JOIN b.reporter r JOIN b.products p ORDER BY b.created DESC";
+$query = $entityManager->createQuery($dql);
+$bugs = $query->getArrayResult();
+
+foreach ($bugs as $bug) {
+    echo $bug['description'] . " - " . $bug['created']->format('d.m.Y')."\n";
+    echo "    Reported by: ".$bug['reporter']['name']."\n";
+    echo "    Assigned to: ".$bug['engineer']['name']."\n";
+    foreach ($bug['products'] as $product) {
+        echo "    Platform: ".$product['name']."\n";
+    }
+    echo "\n";
+}
+```
+
+There is one significant difference in the DQL query however, we have to add an additional fetch-join for the products connected to a bug. The resulting SQL query for this single select statement is pretty large, however still more efficient to retrieve compared to hydrating objects.
