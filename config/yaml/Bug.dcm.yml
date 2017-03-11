@@ -1,6 +1,7 @@
 # config/yaml/Bug.dcm.yml
 Bug:
   type: entity
+  repositoryClass: BugRepository
   table: bugs
   id:
     id:

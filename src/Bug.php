@@ -7,7 +7,8 @@ use Doctrine\Common\Collections\ArrayCollection;
  * Date: 2017/3/9
  * Time: 17:02
  *
- * @Entity(repositoryClass="BugRepository") @Table(name="bugs")
+ * @Entity(repositoryClass="BugRepository")
+ * @Table(name="bugs")
  */
 class Bug
 {
@@ -162,6 +163,6 @@ class Bug
 
     public function close()
     {
-        $this->status = 'CLOSE';
+        $this->status = 'CLOSED';
     }
 }

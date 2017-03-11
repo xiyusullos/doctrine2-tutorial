@@ -1150,3 +1150,139 @@ When retrieving the Bug from the database it is inserted into the IdentityMap in
 
 When flush is called the EntityManager loops over all the entities in the identity map and performs a comparison between the values originally retrieved from the database and those values the entity currently has. If at least one of these properties is different the entity is scheduled for an UPDATE against the database. Only the changed columns are updated, which offers a pretty good performance improvement compared to updating all the properties.
 
+## Entity Repositories
+
+For now we have not discussed how to separate the Doctrine query logic from your model. In Doctrine 1 there was the concept of `Doctrine_Table` instances for this separation. The similar concept in Doctrine2 is called Entity Repositories, integrating the [repository pattern](http://martinfowler.com/eaaCatalog/repository.html) at the heart of Doctrine.
+
+Every Entity uses a default repository by default and offers a bunch of convenience methods that you can use to query for instances of that Entity. Take for example our Product entity. If we wanted to Query by name, we can use:
+
+```PHP
+<?php
+$product = $entityManager->getRepository('Product')
+                         ->findOneBy(array('name' => $productName));
+```
+
+The method `findOneBy()` takes an array of fields or association keys and the values to match against.
+
+If you want to find all entities matching a condition you can use `findBy()`, for example querying for all closed bugs:
+
+```PHP
+<?php
+$bugs = $entityManager->getRepository('Bug')
+                      ->findBy(array('status' => 'CLOSED'));
+
+foreach ($bugs as $bug) {
+    // do stuff
+}
+```
+
+Compared to DQL these query methods are falling short of functionality very fast. Doctrine offers you a convenient way to extend the functionalities of the default `EntityRepository` and put all the specialized DQL query logic on it. For this you have to create a subclass of `Doctrine\ORM\EntityRepository`, in our case a `BugRepository` and group all the previously discussed query functionality in it:
+
+```PHP
+<?php
+// src/BugRepository.php
+
+use Doctrine\ORM\EntityRepository;
+
+class BugRepository extends EntityRepository
+{
+    public function getRecentBugs($number = 30)
+    {
+        $dql = "SELECT b, e, r FROM Bug b JOIN b.engineer e JOIN b.reporter r ORDER BY b.created DESC";
+
+        $query = $this->getEntityManager()->createQuery($dql);
+        $query->setMaxResults($number);
+        return $query->getResult();
+    }
+
+    public function getRecentBugsArray($number = 30)
+    {
+        $dql = "SELECT b, e, r, p FROM Bug b JOIN b.engineer e ".
+               "JOIN b.reporter r JOIN b.products p ORDER BY b.created DESC";
+        $query = $this->getEntityManager()->createQuery($dql);
+        $query->setMaxResults($number);
+        return $query->getArrayResult();
+    }
+
+    public function getUsersBugs($userId, $number = 15)
+    {
+        $dql = "SELECT b, e, r FROM Bug b JOIN b.engineer e JOIN b.reporter r ".
+               "WHERE b.status = 'OPEN' AND e.id = ?1 OR r.id = ?1 ORDER BY b.created DESC";
+
+        return $this->getEntityManager()->createQuery($dql)
+                             ->setParameter(1, $userId)
+                             ->setMaxResults($number)
+                             ->getResult();
+    }
+
+    public function getOpenBugsByProduct()
+    {
+        $dql = "SELECT p.id, p.name, count(b.id) AS openBugs FROM Bug b ".
+               "JOIN b.products p WHERE b.status = 'OPEN' GROUP BY p.id";
+        return $this->getEntityManager()->createQuery($dql)->getScalarResult();
+    }
+}
+```
+
+To be able to use this query logic through `$this->getEntityManager()->getRepository('Bug')` we have to adjust the metadata slightly.
+
+```PHP
+<?php
+/**
+ * @Entity(repositoryClass="BugRepository")
+ * @Table(name="bugs")
+ **/
+class Bug
+{
+    //...
+}
+```
+
+```XML
+<doctrine-mapping xmlns="http://doctrine-project.org/schemas/orm/doctrine-mapping"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://doctrine-project.org/schemas/orm/doctrine-mapping
+                    http://raw.github.com/doctrine/doctrine2/master/doctrine-mapping.xsd">
+
+      <entity name="Bug" table="bugs" repository-class="BugRepository">
+
+      </entity>
+</doctrine-mapping>
+```
+
+```YAML
+Bug:
+  type: entity
+  repositoryClass: BugRepository
+```
+
+Now we can remove our query logic in all the places and instead use them through the EntityRepository. As an example here is the code of the first use case “List of Bugs”:
+
+```PHP
+<?php
+// list_bugs_repository.php
+require_once "bootstrap.php";
+
+$bugs = $entityManager->getRepository('Bug')->getRecentBugs();
+
+foreach ($bugs as $bug) {
+    echo $bug->getDescription()." - ".$bug->getCreated()->format('d.m.Y')."\n";
+    echo "    Reported by: ".$bug->getReporter()->getName()."\n";
+    echo "    Assigned to: ".$bug->getEngineer()->getName()."\n";
+    foreach ($bug->getProducts() as $product) {
+        echo "    Platform: ".$product->getName()."\n";
+    }
+    echo "\n";
+}
+```
+
+Using EntityRepositories you can avoid coupling your model with specific query logic. You can also re-use query logic easily throughout your application.
+
+The method `count()` takes an array of fields or association keys and the values to match against. This provides you with a convenient and lightweight way to count a resultset when you don’t need to deal with it:
+
+```PHP
+<?php
+$productCount = $entityManager->getRepository(Product::class)
+                         ->count(['name' => $productName]);
+```
+
