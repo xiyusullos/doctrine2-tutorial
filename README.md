@@ -924,3 +924,43 @@ See how simple relating Bug, Reporter, Engineer and Products is done by using th
 
 ## Queries for Application Use-Cases
 
+### List of Bugs
+
+Using the previous examples we can fill up the database quite a bit, however we now need to discuss how to query the underlying mapper for the required view representations. When opening the application, bugs can be paginated through a list-view, which is the first read-only use-case:
+
+```PHP
+<?php
+// list_bugs.php
+require_once "bootstrap.php";
+
+$dql = "SELECT b, e, r FROM Bug b JOIN b.engineer e JOIN b.reporter r ORDER BY b.created DESC";
+
+$query = $entityManager->createQuery($dql);
+$query->setMaxResults(30);
+$bugs = $query->getResult();
+
+foreach ($bugs as $bug) {
+    echo $bug->getDescription()." - ".$bug->getCreated()->format('d.m.Y')."\n";
+    echo "    Reported by: ".$bug->getReporter()->getName()."\n";
+    echo "    Assigned to: ".$bug->getEngineer()->getName()."\n";
+    foreach ($bug->getProducts() as $product) {
+        echo "    Platform: ".$product->getName()."\n";
+    }
+    echo "\n";
+}
+```
+
+The DQL Query in this example fetches the 30 most recent bugs with their respective engineer and reporter in one single SQL statement. The console output of this script is then:
+
+```
+Somethins does not work! - 11.03.2017
+  Reported by: xiyusullos
+  Assigned to: xiyusullos.
+  Platform: ORM-new
+```
+
+> #### DQL is not SQL
+> You may wonder why we start writing SQL at the beginning of this use-case. Don’t we use an ORM to get rid of all the endless hand-writing of SQL? Doctrine introduces DQL which is best described as **object-query-language** and is a dialect of [OQL](http://en.wikipedia.org/wiki/Object_Query_Language) and similar to [HQL](http://www.hibernate.org/) or [JPQL](http://en.wikipedia.org/wiki/Java_Persistence_Query_Language). It does not know the concept of columns and tables, but only those of Entity-Class and property. Using the Metadata we defined before it allows for very short distinctive and powerful queries.
+> An important reason why DQL is favourable to the Query API of most ORMs is its similarity to SQL. The DQL language allows query constructs that most ORMs don’t: GROUP BY even with HAVING, Sub-selects, Fetch-Joins of nested classes, mixed results with entities and scalar data such as COUNT() results and much more. Using DQL you should seldom come to the point where you want to throw your ORM into the dumpster, because it doesn’t support some the more powerful SQL concepts.
+> Instead of handwriting DQL you can use the `QueryBuilder` retrieved by calling `$entityManager->createQueryBuilder()`. There are more details about this in the relevant part of the documentation.
+> As a last resort you can still use Native SQL and a description of the result set to retrieve entities from the database. DQL boils down to a Native SQL statement and a ResultSetMapping instance itself. Using Native SQL you could even use stored procedures for data retrieval, or make use of advanced non-portable database queries like PostgreSql’s recursive queries.
